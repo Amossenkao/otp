@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ func init() {
 	jsonFile, err := util.Open("utils/env.json")
 	
 	if err != nil {
+		getEnvJson()
 		log.Fatalf("Error reading utils/services.json: %v", err)
 	}
 	defer jsonFile.Close()
@@ -49,6 +51,25 @@ type Service struct {
 	Secret    string `json:"secret"`
 }
 
+func getEnvJson() {
+
+	jsonFile, err := os.Create("env.json")
+	if err != nil {
+		log.Fatalf("Error creating env.json: %v", err)
+	}
+	defer jsonFile.Close()
+
+	encoder := json.NewEncoder(jsonFile)
+	encoder.SetIndent("", "  ")
+
+	err = encoder.Encode(customEnv)
+	if err != nil {
+		log.Fatalf("Error encoding data: %v", err)
+	}
+
+	fmt.Println("env.json file created successfully")
+}
+
 
 func getSecret(service string) (string, string, error) {
 	service = strings.ToLower(service)
@@ -67,21 +88,28 @@ func getSecret(service string) (string, string, error) {
 func main() {
 
 	var list bool
+	var env bool
 	var rootCmd = &cobra.Command{Use: "TOTP Generator", Example: "otp get [service]", Run: func(cmd *cobra.Command, args []string) {
-		if list {
+		if list || env {
 			if !utils.Authenticate(password) {
 				log.Fatal("Authentication failed")
-			} else {
+			}
 
-				count := 1
-				for i := 0; i < len(services); i++ {
-					svc := services[i]
-					fmt.Printf("%d. Name: %s <==> Short Name: %s\n", count, svc.Name, svc.ShortName)
-					count++
-				}
+			if list {
+			count := 1
+			for i := 0; i < len(services); i++ {
+				svc := services[i]
+				fmt.Printf("%d. Name: %s <==> Short Name: %s\n", count, svc.Name, svc.ShortName)
+				count++
+			}
+			}
+
+			if env {
+				getEnvJson()
 			}
 		}
 	}}
+	
 
 	var getCmd = &cobra.Command{
 		Use:     "get [service]",
@@ -132,6 +160,7 @@ func main() {
 	rootCmd.AddCommand(getCmd)
 	rootCmd.AddCommand(secretCmd)
 	rootCmd.Flags().BoolVarP(&list, "list", "l", false, "List all services")
+	rootCmd.Flags().BoolVarP(&env, "env", "e", false, "Generate env.json file")
 
 	// Execute the root command
 	if err := rootCmd.Execute(); err != nil {
